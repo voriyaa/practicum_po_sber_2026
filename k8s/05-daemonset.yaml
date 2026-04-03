@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: log-agent
+spec:
+  selector:
+    matchLabels:
+      app: log-agent
+  template:
+    metadata:
+      labels:
+        app: log-agent
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: log-agent
+        image: busybox:1.36
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "log-agent started"
+          while true; do
+            LOGS=$(wget -qO- http://custom-app-service/logs 2>/dev/null)
+            if [ -n "$LOGS" ]; then
+              echo "$LOGS"
+              echo "$LOGS" >> /var/log/collected-app.log
+            fi
+            sleep 30
+          done
+        volumeMounts:
+        - name: hostlog
+          mountPath: /var/log
+      volumes:
+      - name: hostlog
+        hostPath:
+          path: /var/log
+          type: DirectoryOrCreate
