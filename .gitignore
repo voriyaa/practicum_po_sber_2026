@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
 *.tar.gz
+istio-1.29.2/

@@ -1,12 +1,13 @@
-# Практикум по промышленной разработке ПО, дз1
+# Практикум по промышленной разработке ПО, дз2
 
-разворачиваем flask приложение в кубере с логированием
+flask приложение в кубере с логированием + istio service mesh
 
 ## что тут лежит
 
 app/ - само приложение на питоне + докерфайл
-k8s/ - ямлики для кубера
-deploy.sh - запускает все
+k8s/ - манифесты для кубера
+k8s/istio/ - gateway, virtualservice, destinationrule
+deploy.sh - запускает все включая istio
 
 ## запуск
 
@@ -19,38 +20,37 @@ minikube start --driver=docker
 
 ## как проверить
 
+узнаем ip ingress gateway:
 ```
-kubectl port-forward svc/custom-app-service 8080:80 &
-curl http://localhost:8080/
-curl http://localhost:8080/status
-curl -X POST http://localhost:8080/log -H "Content-Type: application/json" -d '{"message":"test"}'
-curl http://localhost:8080/logs
-```
-
-проверяем что запросы идут на разные поды:
-```
-for i in 1 2 3 4 5; do curl -s http://localhost:8080/status; echo; done
-kubectl get pods -l app=custom-app
+export INGRESS_PORT=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}')
+export INGRESS_HOST=$(minikube ip)
+export GATEWAY_URL=$INGRESS_HOST:$INGRESS_PORT
 ```
 
-логи агента:
+проверяем эндпоинты:
 ```
-kubectl logs -l app=log-agent --tail=10
-```
-
-проверяем cronjob:
-```
-kubectl get cronjob
-kubectl get jobs
+curl http://$GATEWAY_URL/
+curl http://$GATEWAY_URL/status
+curl -X POST http://$GATEWAY_URL/log -H "Content-Type: application/json" -d '{"message":"test"}'
+curl http://$GATEWAY_URL/logs
 ```
 
-проверяем statefulset:
+404 на неизвестный маршрут:
 ```
-kubectl get statefulset
-kubectl logs log-storage-0 --tail=5
+curl http://$GATEWAY_URL/wrong
 ```
 
-все поды разом:
+таймаут на POST /log (задержка 2с > таймаут 1с):
+```
+curl -v -X POST http://$GATEWAY_URL/log -H "Content-Type: application/json" -d '{"message":"timeout test"}'
+```
+
+istio ресурсы:
+```
+kubectl get gateway,virtualservice,destinationrule
+```
+
+все ресурсы:
 ```
 kubectl get all
 ```
